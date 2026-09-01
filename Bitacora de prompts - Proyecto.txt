@@ -1,0 +1,25 @@
+Bitacora de prompts - Proyecto Análisis devops 
+Nombre: Yicela Jorquera
+
+En la siguiente bitácora se presentan los prompts utilizados utilizando el modelo Sonnet 5 de Claude, con el propósito de mostrar cada consulta realizada para obtener los resultados del proyecto. En una primera instancia, se generó una prompt explorativa, ya que se buscaba por un lado entender las herramientas necesarias para la realización de este proyecto, como lo son GitHub, RStudio, etc, además de entender como poder desarrollar los primeros puntos del laboratorio. Para mayor claridad, las prompts irán desde v1 ... vn, donde n representa la cantidad entera de prompts realizadas. Todas estas prompts fueron realizadas bajo el mismo chat y modelo de IA.
+
+v1: "Hola, de acuerdo al siguiente trabajo en RStudio, necesito que me hagas una explicacion completa y detallada para resolver este trabajo, partiendo por las herramientas a usar, un tutorial de como enlazar Rstudio con github, un pequeño resumen de git para principiantes (lo necesario para resolver este lab), junto con generar el csv solicitado, y finalmente, desarrollar los puntos 1 y 2 del trabajo (hasta ahi solamente)"
+
+Esta prompt permitió tener un entendimiento general de este proyecto, y adentrarse en la configuración del ambiente de trabajo con las respectivas herramientas, ya que como output se obtuvieron una serie de archivos, como por ejemplo el csv solicitado con la muestra de 5000 datos, entre otros archivos explicativos que mostraban como configurar el ambiente de trabajo. Luego de esta prompt, el ambiente de trabajo quedó configurado correctamente, pero entró la duda sobre el desarrollo de los primeros 2 puntos del trabajo, por lo que en la siguiente prompt v2 se enfatizó en consultar acerca de la explicación para estos 2 puntos, para poder entender que se hacía en cada linea.
+
+v2: "Al respecto del desarrollo de los puntos 1 y 2, podrias explicar en detalle de forma clara y precisa en que consiste cada uno de estos, cual es el proposito y como comenzar a desarrollarlo. Necesito entender la logica del codigo"
+
+Gracias a la prompt v2 se logró comprender a mayor detalle el desarrollo presente en los puntos 1 y 2, ya que se explicó con claridad cada punto lo que permitió ir linea por linea comentando los significados de cada parte del código. Siguiendo en esa misma linea, se realizó una prompt v3 con la cual se pretende obtener los desarrollos de los puntos 3 y 4, y al mismo tiempo, obtener una explicación similar a los primeros puntos pero considerando una explicación un poco mas simple, considerando que la IA muchas veces aborda los temas con muchos tecnicismos.
+
+v3: "He entendido la lógica de los puntos 1 y 2. A continuación,  procede con el desarrollo de los puntos 3 y 4, idealmente explicados de la misma forma pero no de una forma tan técnica, considerando que estoy comenzando recientemente en el curso de estadística"
+
+Luego del desarrollo del punto v3, se comprendió el desarrollo de los puntos 3 y 4 por lo que se colocaron en la versión del código, posteriormente se recurrió a consultar nuevamente para obtener el desarrollo de la fase 5 y 6 en una v4.
+
+v4: "Perfecto, he entendido la logica de la fase 3 y 4, podriamos seguir con la fase 5 y 6 siguiendo el mismo enfoque que en las fases anteriores para poder finalizar el desarrollo sin problemas?"
+
+Se solicito la construccion del README para el codigo del proyecto.
+
+v5: "Necesito que construyas el readme para mi codigo segun lo solicitado en el documento. Debe ser algo breve y simple, pero exacto segun lo que se definio. A continuacion te subire la foto con el directorio de mi codigo. Es importante aclarar que todas las fases las hice en un solo archivo (AnalisisR)"
+
+Se 
+v6: "Continuemos ahora con la fase 7,  quiero que se enfatice en mostrar los resultados del trabajo a lo largo de las fases y que se apegue al formato solicitado por el documento"
