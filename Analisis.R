@@ -1,29 +1,38 @@
-#@abrazoconejito en ig
-#Se importan las librerias necesarias para el analisis
+# Análisis de métricas de software y DevOps
+# Nombre: Yicela Jorquera
 
+# importar paquetes necesarios para usar
 library(tidyverse)
 library(moments)
 
-#se declara un dataframe que contiene los datos importando el csv
-#abrazoconejito en tiktok
+# FASE 1: Carga y limpieza
 
+# crear un dataframe "df" que carga los datos del csv generado
 df <- read_csv("devops_metrics.csv")
-glimpse(df); summary(df)
 
-dim(df)
+# inspeccion de datos preliminar, glimpse para ver tipos de dato y summary para ver los estadisticos
+glimpse(df)
 
-# 1.3 Revisar duplicados exactos
+summary(df)
+
+# revision de registros duplicados, la salida da el numero de filas repetidas
 sum(duplicated(df))
+
+# eliminar filas repetidas para dejar registros únicos
 df <- df %>% distinct()
 
-# 1.4 Revisar valores faltantes por columna
+# revisar la cantidad de valores faltantes por cada columna (la salida es un numero por columna)
 colSums(is.na(df))
 
-# Decisión de limpieza (documentar SIEMPRE el porqué):
-# - test_coverage_pct y ticket_resolution_h tienen NA (~1-3%).
-#   Como son pocos y el resto de la fila es válido, se opta por
-#   IMPUTAR con la mediana de su grupo (team) en vez de eliminar
-#   filas completas, para no perder información de otras variables.
+# Decisión de limpieza:
+
+# se hace un group_by para tratar los datos como grupos separados, para calcular por grupo y no por la tabla completa
+# mutate para crear o reemplazar una columna, fila por fila
+# se valida si la celda es NA, si es asi entonces se reemplaza el valor por la mediana de su grupo en vez de eliminar
+# ungroup para no arrastrar los agrupamientos que hicimos recien a operaciones futuras
+
+# se usó la mediana en vez del promedio ya que no se arrastra por valores extremos como si lo hace el promedio
+
 df <- df %>%
   group_by(team) %>%
   mutate(
@@ -36,10 +45,11 @@ df <- df %>%
   ) %>%
   ungroup()
 
-# Verificar que ya no quedan NA
+# verificar que no queden valores "NA"
 colSums(is.na(df))
 
-# 1.5 Corregir tipos de dato
+# correccion de tipos de dato por factores, agregandole nivel a las prioridaes
+# es importante en este caso porque los niveles de la columna priority tienen un orden logico que debe respetarse
 df <- df %>%
   mutate(
     team = as.factor(team),
@@ -52,29 +62,37 @@ df <- df %>%
 
 str(df)
 
-# 1.6 Revisar valores fuera de rango / outliers evidentes
+# mantener solo valores que están dentro de un rango
 # test_coverage_pct debe estar en [0,100]
 df %>% filter(test_coverage_pct < 0 | test_coverage_pct > 100)
 
 # build_time_min y deploy_time_min no pueden ser negativos
 df %>% filter(build_time_min <= 0 | deploy_time_min <= 0)
 
-# Se identifican algunos build_time_min extremos (posibles builds
-# colgados / reintentos). NO se eliminan sin justificar: se marcan
-# como sospechosos para revisarlos en Fase 6 con boxplot, pero se
-# conservan porque son valores reales (no errores de captura).
+
+# tomando la regla de Tukey, consideramos que cualquier valor que supere el 
+# tercer cuartil Q3 más 1.5 veces el rango intercuartílico IQR se considera atípico
+# no los eliminamos pero se marcan como sospechosos para revisarlos en Fase 6 con boxplot; se
+# conservan porque son valores reales, no errores
+
 df <- df %>%
   mutate(build_time_outlier = build_time_min > (quantile(build_time_min, 0.75) +
                                                   1.5 * IQR(build_time_min)))
 sum(df$build_time_outlier)
 
-# 1.7 Guardar el dataset limpio para las siguientes fases
+# guardar el dataset limpio para la siguiente fase de procesamiento
 write_csv(df, "devops_metrics_clean.csv")
 
 
-# ---- 2. FASE 2: Descriptiva univariada ------------------------
+# FASE 2: Descriptiva univariada
 
-# Función auxiliar para no repetir código en cada variable cuantitativa
+# la idea en esta fase es escribir cada variable con las tres familias: tendencia central, dispersión y forma
+# (asimetría y curtosis).
+
+# aca se define una funcion auxiliar para no repetir código en cada variable cuantitativa
+# la cual devuelve una fila con todas las metricas calculadas
+# el na.rm lo que hace es ignorar los NA al realizar cálculos (a pesar de que ya fueron limpiados en F1, es por seguridad)
+
 describir <- function(x, nombre) {
   tibble(
     variable = nombre,
@@ -94,23 +112,74 @@ describir <- function(x, nombre) {
   )
 }
 
+# aplicar la funcion definida a varias variables
 vars_cuant <- c("build_time_min", "deploy_time_min", "commit_size_loc",
                 "num_bugs", "test_coverage_pct", "ticket_resolution_h")
 
 tabla_descriptiva <- map_dfr(vars_cuant, ~ describir(df[[.x]], .x))
 print(tabla_descriptiva, width = Inf)
 
-# 2.1 Interpretación rápida de asimetría y curtosis
+# interpretacion de asimetria y curtosis
 # asimetria > 0  -> cola larga a la derecha (ej: commit_size_loc, num_bugs)
 # asimetria ~ 0  -> distribución aprox. simétrica
 # curtosis > 3   -> leptocúrtica (colas más "pesadas" que la normal)
 # curtosis < 3   -> platicúrtica (colas más livianas)
 
-# 2.2 Variables cualitativas: frecuencias
+# variables cualitativas: tablas de frecuencia
 df %>% count(team, sort = TRUE) %>% mutate(pct = round(100 * n / sum(n), 1))
 df %>% count(module, sort = TRUE) %>% mutate(pct = round(100 * n / sum(n), 1))
 df %>% count(priority) %>% mutate(pct = round(100 * n / sum(n), 1))
 df %>% count(deploy_status, sort = TRUE) %>% mutate(pct = round(100 * n / sum(n), 1))
 
-# 2.3 Guardar tabla descriptiva como insumo para el reporte final
+# guardar tabla descriptiva para el reporte final
 write_csv(tabla_descriptiva, "tabla_descriptiva_fase2.csv")
+
+
+# FASE 3
+
+k <- ceiling(1 + 3.322 * log10(nrow(df)))
+
+df %>%
+  mutate(clase = cut(build_time_min, k)) %>%
+  count(clase, name = "fa") %>%
+  mutate(fr = fa / sum(fa),
+         fac = cumsum(fa))
+
+# FASE 4
+
+df %>%
+  group_by(team) %>%
+  summarise(
+    build_md = median(build_time_min),
+    bugs = mean(num_bugs),
+    fallos = mean(deploy_status == "failed"))
+
+# FASE 5
+
+num <- df %>% select(where(is.numeric))
+cor(num, use = "complete.obs") %>% round(2)
+
+cor(df$commit_size_loc, df$num_bugs)
+
+prop.table(table(df$priority, df$deploy_status), margin = 1)
+
+
+# FASE 6
+
+ggplot(df, aes(build_time_min)) +
+  geom_histogram(bins = 20)
+
+ggplot(df, aes(team, ticket_resolution_h)) +
+  geom_boxplot()
+
+ggplot(df, aes(team, fill = deploy_status)) +
+  geom_bar(position = "fill")
+
+ggplot(df, aes(commit_size_loc, num_bugs)) +
+  geom_point()
+
+ggplot(df, aes(build_time_min)) +
+  geom_histogram(bins = 20) +
+  labs(title = "Distribución del tiempo de build",
+       x = "Tiempo de build (minutos)",
+       y = "Frecuencia")
