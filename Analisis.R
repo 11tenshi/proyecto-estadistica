@@ -195,7 +195,7 @@ df %>%
   mutate(fr = round(fa / sum(fa), 4), fac = cumsum(fa))
 
 # --- 3.6 Frecuencias de variables cualitativas ------------------------
-# Aquí no se "cortan" en tramos: cada categoría ya es un grupo natural.
+# 
 df %>%
   count(priority, name = "fa") %>%
   mutate(fr = round(fa / sum(fa), 4))
@@ -252,7 +252,7 @@ resumen_prioridad
 # Como 'priority' quedó como factor ordenado (Fase 1), esta tabla
 # ya sale ordenada de "baja" a "critica", no alfabéticamente.
 
-# --- 4.4 Tabla cruzada: equipo x estado del despliegue -------------------
+# --- 4.4 Tabla cruzada: equipo por estado del despliegue -------------------
 # table() cuenta cuántas veces se combina cada valor de una variable
 # con cada valor de otra. Es la forma más simple de comparar dos
 # variables categóricas al mismo tiempo.
@@ -285,7 +285,7 @@ matriz_cor
 # de las dos variables que estás comparando, ignórala solo para ese
 # cálculo (no borra la fila del resto del análisis).
 
-# --- 5.2 Ver la matriz como "mapa de calor" (más fácil de leer) --------
+# --- 5.2 Ver la matriz como "mapa de calor"  --------
 # Convertimos la matriz a formato largo (una fila por cada par de
 # variables) para poder graficarla con ggplot.
 matriz_larga <- as.data.frame(matriz_cor) %>%
@@ -300,6 +300,19 @@ ggplot(matriz_larga, aes(var1, var2, fill = correlacion)) +
   labs(title = "Correlación entre variables numéricas", x = "", y = "") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# --- 5.3 Tamaño del commit vs. bugs detectados  --------
+
+ggplot(df, aes(commit_size_loc, num_bugs)) +
+  geom_jitter(alpha = 0.15, width = 0, height = 0.15) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick") +
+  labs(x = "Líneas de código modificadas", y = "Número de bugs")
+# --- 5.4 Cobertura de pruebas vs. bugs detectados  --------
+
+ggplot(df, aes(test_coverage_pct, num_bugs)) +
+  geom_jitter(alpha = 0.15, height = 0.15) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick") +
+  labs(x = "Cobertura de pruebas (%)", y = "Número de bugs")
 
 
 # --- 5.5 Tabla de contingencia: prioridad x estado del despliegue -------

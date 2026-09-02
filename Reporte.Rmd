@@ -1,10 +1,13 @@
 ---
 title: "Análisis de métricas de software y DevOps"
+subtitle: "Proyecto integrador — Probabilidad y Estadística Computacional"
 author: "Yicela Jorquera Garrido"
+date: "`r format(Sys.Date(), '%d-%m-%Y')`"
 output:
   html_document:
     toc: true
     toc_float: true
+    toc_depth: 3
     number_sections: true
 ---
 
@@ -13,38 +16,66 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align =
 library(tidyverse)
 library(moments)
 library(knitr)
+library(scales)
 ```
 
-# Contexto
+Contexto y objetivo
 
-Este reporte analiza un histórico de `r nrow(read_csv("devops_metrics.csv"))` eventos de
-integración/despliegue (`devops_metrics.csv`), con el objetivo de calcular e interpretar
-medidas de tendencia central, dispersión y forma, construir tablas de frecuencia, analizar
-relaciones entre variables y producir hallazgos accionables para el equipo de ingeniería.
+# Datos  {-}
+
+Este reporte analiza `devops_metrics.csv`, un histórico de eventos de integración y
+despliegue, con variables de tiempo (`build_time_min`,
+`deploy_time_min`), calidad (`commit_size_loc`, `num_bugs`, `test_coverage_pct`),
+gestión (`team`, `module`, `priority`, `ticket_resolution_h`) y resultado
+(`deploy_status`).
+
+# Objetivo  {-}
+
+Calcular e interpretar medidas de tendencia central, dispersión y forma; construir
+tablas de frecuencia; comparar equipos, módulos y prioridades; analizar relaciones
+entre variables; y comunicar los hallazgos mediante visualizaciones, todo de forma
+reproducible.
 
 # Fase 1 · Carga y limpieza
+
+## Inspección inicial
 
 ```{r fase1-carga}
 df <- read_csv("devops_metrics.csv")
 glimpse(df)
 ```
 
-**Valores faltantes detectados por columna:**
-
-```{r fase1-na}
-na_por_columna <- colSums(is.na(df))
-kable(na_por_columna, col.names = "N° de NA")
+```{r fase1-summary}
+summary(df)
 ```
 
-**Duplicados detectados:** `r sum(duplicated(df))` filas exactamente repetidas — se eliminan.
+## Detección de problemas en los datos
+
+**Valores faltantes por columna:**
+
+```{r fase1-na}
+kable(colSums(is.na(df)), col.names = "N° de NA")
+```
+
+**Filas duplicadas:** `r sum(duplicated(df))` filas exactamente repetidas.
+
+**Inconsistencias de formato:** la variable `team` presenta valores con distinto
+formato de mayúsculas (ej. "BETA" en vez de "Beta"), que R trataría como categorías
+distintas si no se corrige.
+
+
+
+
+## Limpieza aplicada
 
 ```{r fase1-limpieza}
+# Eliminar duplicados exactos
 df <- df %>% distinct()
 
-# Normalizar inconsistencias de formato en 'team' (ej. "BETA" -> "Beta")
+# Normalizar formato de texto en 'team'
 df <- df %>% mutate(team = str_to_title(team))
 
-# Tipos correctos
+# Corregir tipos de variable
 df <- df %>%
   mutate(
     team          = as.factor(team),
@@ -55,30 +86,44 @@ df <- df %>%
                             ordered = TRUE)
   )
 
-# Acotar outliers evidentes en build_time_min (winsorización al percentil 99.5)
+# Acotar outliers de build_time_min al percentil 99.5 (winsorización)
 p995 <- quantile(df$build_time_min, 0.995, na.rm = TRUE)
 df <- df %>% mutate(build_time_min = ifelse(build_time_min > p995, p995, build_time_min))
 ```
 
-**Decisión sobre los NA:** dado que representan menos del 5% de las filas y no muestran un
-patrón evidente de "faltante no aleatorio", se excluyen puntualmente con `na.rm = TRUE` en
-los cálculos donde corresponde, en vez de imputarlos.
+**Decisión sobre los valores faltantes:** representan menos del 5% de las filas y no
+muestran un patrón evidente de "faltante no aleatorio", por lo que se optó por
+**excluirlos puntualmente** con `na.rm = TRUE` en los cálculos donde corresponde,
+en vez de imputarlos artificialmente.
 
-Tras la limpieza, el dataset queda con `r nrow(df)` filas y `r ncol(df)` columnas, listas
-para el análisis.
+**Decisión sobre los outliers:** se **acotaron** (winsorización) en vez de eliminar
+la fila completa, para no perder el resto de la información de esa observación.
+
+## Resultado de la limpieza
+
+El dataset queda con **`r nrow(df)` filas** y **`r ncol(df)` columnas**, listo para
+el análisis.
+
+```{r fase1-str}
+str(df)
+```
 
 # Fase 2 · Descriptiva univariada
+
+## Tabla de medidas descriptivas
 
 ```{r fase2-funcion}
 describir_numerica <- function(x, nombre) {
   x <- x[!is.na(x)]
   tibble(
-    variable = nombre,
-    media    = mean(x),
-    mediana  = median(x),
-    sd       = sd(x),
-    cv       = sd(x) / mean(x),
-    iqr      = IQR(x),
+    variable  = nombre,
+    media     = mean(x),
+    mediana   = median(x),
+    sd        = sd(x),
+    varianza  = var(x),
+    cv        = sd(x) / mean(x),
+    rango     = max(x) - min(x),
+    iqr       = IQR(x),
     asimetria = skewness(x),
     curtosis  = kurtosis(x)
   )
@@ -90,80 +135,175 @@ vars_cuant <- c("build_time_min", "deploy_time_min", "commit_size_loc",
 tabla_descriptiva <- map_dfr(vars_cuant, ~ describir_numerica(df[[.x]], .x)) %>%
   mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-kable(tabla_descriptiva, caption = "Medidas de tendencia central, dispersión y forma")
+kable(tabla_descriptiva, caption = "Tendencia central, dispersión y forma — variables cuantitativas")
 ```
 
-```{r fase2-cv-max}
-var_mas_variable <- tabla_descriptiva %>% slice_max(cv, n = 1) %>% pull(variable)
+## Interpretación de la forma (asimetría y curtosis)
+
+```{r fase2-forma}
+tabla_forma <- tabla_descriptiva %>%
+  select(variable, asimetria, curtosis) %>%
+  mutate(
+    forma_asimetria = case_when(
+      asimetria >  0.5 ~ "asimétrica a la derecha",
+      asimetria < -0.5 ~ "asimétrica a la izquierda",
+      TRUE             ~ "aprox. simétrica"
+    ),
+    forma_curtosis = if_else(curtosis > 3, "leptocúrtica", "platicúrtica/mesocúrtica")
+  )
+
+kable(tabla_forma, caption = "Clasificación de la forma de cada distribución")
 ```
 
-**Lectura de resultados:** la variable con mayor coeficiente de variación es
-**`r var_mas_variable`**, es decir, la que muestra mayor dispersión relativa a su propia
-media. Los valores de asimetría y curtosis de la tabla anterior permiten identificar qué
-variables se alejan más de una distribución simétrica (ver columna `asimetria`: valores
-> 0.5 indican cola a la derecha).
+## Coeficiente de variación: ¿qué variable es más volátil?
+
+```{r fase2-cv}
+tabla_cv <- tabla_descriptiva %>% select(variable, cv) %>% arrange(desc(cv))
+kable(tabla_cv, caption = "Variables ordenadas por dispersión relativa (CV)")
+```
+
+```{r fase2-cv-max, include=FALSE}
+var_mas_variable <- tabla_cv$variable[1]
+```
+
+La variable con mayor dispersión relativa a su propia media es **`r var_mas_variable`**.
+
+## Frecuencias de las variables cualitativas
+
+```{r fase2-cualitativas}
+kable(df %>% count(team, sort = TRUE) %>% mutate(pct = round(100*n/sum(n),1)),
+      caption = "Distribución por equipo")
+kable(df %>% count(module, sort = TRUE) %>% mutate(pct = round(100*n/sum(n),1)),
+      caption = "Distribución por módulo")
+kable(df %>% count(priority) %>% mutate(pct = round(100*n/sum(n),1)),
+      caption = "Distribución por prioridad")
+kable(df %>% count(deploy_status) %>% mutate(pct = round(100*n/sum(n),1)),
+      caption = "Distribución por estado de despliegue")
+```
 
 # Fase 3 · Frecuencias y agrupación
+
+## Número de clases (regla de Sturges)
 
 ```{r fase3-sturges}
 k <- ceiling(1 + 3.322 * log10(nrow(df)))
 ```
 
-Aplicando la regla de Sturges con `r nrow(df)` observaciones, se utilizan **`r k` clases**
-para agrupar `build_time_min`.
+Con `r nrow(df)` observaciones, la regla de Sturges sugiere agrupar las variables
+continuas en **`r k` clases**.
 
-```{r fase3-tabla}
+## Tabla de frecuencias: build_time_min
+
+```{r fase3-tabla-build}
 tabla_build <- df %>%
   mutate(clase = cut(build_time_min, breaks = k)) %>%
   count(clase, name = "fa") %>%
-  mutate(fr = round(fa / sum(fa), 4), fac = cumsum(fa))
+  mutate(fr = round(fa/sum(fa),4), fac = cumsum(fa), frac = round(cumsum(fr),4))
 
-kable(tabla_build, caption = "Tabla de frecuencias de build_time_min")
+kable(tabla_build, caption = "Frecuencias de build_time_min")
 ```
 
-```{r fase3-modal}
-clase_modal <- tabla_build %>% filter(fa == max(fa)) %>% pull(clase)
+```{r fase3-modal-build, include=FALSE}
+clase_modal_build <- tabla_build %>% filter(fa == max(fa)) %>% pull(clase)
 ```
 
-**Clase modal:** el tramo con más observaciones es **`r clase_modal`**, es decir, ahí se
-concentra la mayor parte de los despliegues.
+**Clase modal:** `r clase_modal_build` — es el tramo donde se concentra la mayor
+cantidad de despliegues.
+
+## Tabla de frecuencias: deploy_time_min
+
+```{r fase3-tabla-deploy}
+tabla_deploy <- df %>%
+  mutate(clase = cut(deploy_time_min, breaks = k)) %>%
+  count(clase, name = "fa") %>%
+  mutate(fr = round(fa/sum(fa),4), fac = cumsum(fa))
+
+kable(tabla_deploy, caption = "Frecuencias de deploy_time_min")
+```
+
+## Frecuencia de num_bugs (variable discreta)
+
+```{r fase3-bugs}
+kable(df %>% count(num_bugs, name = "fa") %>%
+        mutate(fr = round(fa/sum(fa),4), fac = cumsum(fa)),
+      caption = "Frecuencias de num_bugs")
+```
 
 # Fase 4 · Análisis por grupos
+
+## Comparación por equipo
 
 ```{r fase4-equipos}
 resumen_equipos <- df %>%
   group_by(team) %>%
   summarise(
     n_eventos     = n(),
+    build_media   = round(mean(build_time_min, na.rm = TRUE), 2),
     build_mediana = round(median(build_time_min, na.rm = TRUE), 2),
     bugs_promedio = round(mean(num_bugs, na.rm = TRUE), 2),
     tasa_fallos   = round(mean(deploy_status == "failed", na.rm = TRUE), 3)
   ) %>%
   arrange(desc(tasa_fallos))
 
-kable(resumen_equipos, caption = "Comparación de métricas por equipo")
+kable(resumen_equipos, caption = "Métricas clave por equipo")
 ```
 
-```{r fase4-hallazgo-equipo}
+```{r fase4-hallazgo-equipo, include=FALSE}
 equipo_peor <- resumen_equipos$team[1]
 tasa_peor   <- resumen_equipos$tasa_fallos[1]
 ```
 
-**Hallazgo:** el equipo con mayor tasa de despliegues fallidos es **`r equipo_peor`**, con
-un `r scales::percent(tasa_peor)` de fallos.
+**Hallazgo:** el equipo **`r equipo_peor`** tiene la mayor tasa de despliegues
+fallidos (`r percent(tasa_peor)`).
+
+## Comparación por módulo
+
+```{r fase4-modulo}
+resumen_modulo <- df %>%
+  group_by(module) %>%
+  summarise(
+    n_eventos       = n(),
+    cobertura_media = round(mean(test_coverage_pct, na.rm = TRUE), 1),
+    bugs_promedio   = round(mean(num_bugs, na.rm = TRUE), 2),
+    tasa_fallos     = round(mean(deploy_status == "failed", na.rm = TRUE), 3)
+  ) %>%
+  arrange(desc(bugs_promedio))
+
+kable(resumen_modulo, caption = "Métricas clave por módulo")
+```
+
+## Comparación por prioridad
+
+```{r fase4-prioridad}
+resumen_prioridad <- df %>%
+  group_by(priority) %>%
+  summarise(
+    n_eventos             = n(),
+    resolucion_media_h    = round(mean(ticket_resolution_h, na.rm = TRUE), 1),
+    resolucion_mediana_h  = round(median(ticket_resolution_h, na.rm = TRUE), 1)
+  )
+
+kable(resumen_prioridad, caption = "Horas de resolución de tickets por prioridad")
+```
+
+## Tabla cruzada: equipo × estado del despliegue
 
 ```{r fase4-cruzada}
 tabla_cruzada <- prop.table(table(df$team, df$deploy_status), margin = 1) %>% round(3)
-kable(tabla_cruzada, caption = "Distribución (%) del estado de despliegue por equipo")
+kable(tabla_cruzada, caption = "Distribución (%) del estado de despliegue, por equipo")
 ```
 
 # Fase 5 · Relaciones bivariadas
 
+## Matriz de correlación
+
 ```{r fase5-correlacion}
 num <- df %>% select(where(is.numeric), -event_id)
 matriz_cor <- cor(num, use = "complete.obs") %>% round(2)
-kable(matriz_cor, caption = "Matriz de correlación entre variables numéricas")
+kable(matriz_cor, caption = "Correlación entre variables numéricas")
 ```
+
+## Mapa de calor de correlaciones
 
 ```{r fase5-heatmap, fig.cap="Mapa de calor de correlaciones"}
 as.data.frame(matriz_cor) %>%
@@ -178,59 +318,143 @@ as.data.frame(matriz_cor) %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-```{r fase5-loc-bugs}
+## Tamaño del commit vs. bugs detectados
+
+```{r fase5-loc-bugs, fig.cap="commit_size_loc vs. num_bugs"}
+ggplot(df, aes(commit_size_loc, num_bugs)) +
+  geom_jitter(alpha = 0.15, width = 0, height = 0.15) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick") +
+  labs(x = "Líneas de código modificadas", y = "Número de bugs")
+```
+
+```{r fase5-loc-bugs-valor, include=FALSE}
 cor_loc_bugs <- round(cor(df$commit_size_loc, df$num_bugs, use = "complete.obs"), 2)
+```
+
+Correlación: **`r cor_loc_bugs`**.
+
+## Cobertura de pruebas vs. bugs detectados
+
+```{r fase5-cov-bugs, fig.cap="test_coverage_pct vs. num_bugs"}
+ggplot(df, aes(test_coverage_pct, num_bugs)) +
+  geom_jitter(alpha = 0.15, height = 0.15) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick") +
+  labs(x = "Cobertura de pruebas (%)", y = "Número de bugs")
+```
+
+```{r fase5-cov-bugs-valor, include=FALSE}
 cor_cov_bugs <- round(cor(df$test_coverage_pct, df$num_bugs, use = "complete.obs"), 2)
 ```
 
-**Lectura de resultados:** la correlación entre `commit_size_loc` y `num_bugs` es de
-**`r cor_loc_bugs`**, y entre `test_coverage_pct` y `num_bugs` es de **`r cor_cov_bugs`**.
-Estos valores describen una asociación observada en los datos y **no implican causalidad**:
-es posible que ambas variables respondan a un tercer factor, como la complejidad de la
-tarea desarrollada.
+Correlación: **`r cor_cov_bugs`**.
+
+## Tabla de contingencia: prioridad por estado del despliegue
+
+```{r fase5-contingencia}
+tabla_prioridad_estado <- prop.table(table(df$priority, df$deploy_status), margin = 1) %>% round(3)
+kable(tabla_prioridad_estado, caption = "Distribución (%) del estado de despliegue, por prioridad")
+```
+
+## Correlación no implica causalidad
+
+Las asociaciones anteriores (`r cor_loc_bugs` y `r cor_cov_bugs`) describen una
+tendencia observada en los datos, **no una relación de causa-efecto**. Es posible
+que ambas variables respondan a un tercer factor, como la complejidad de la tarea
+desarrollada, que produce simultáneamente más líneas de código y más bugs.
 
 # Fase 6 · Visualización
 
-```{r fase6-hist, fig.cap="Distribución del tiempo de build"}
+## Histograma: distribución del tiempo de build
+
+```{r fase6-hist-build, fig.cap="Distribución del tiempo de build"}
 ggplot(df, aes(build_time_min)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "white") +
   labs(x = "Tiempo de build (min)", y = "Frecuencia")
 ```
 
-```{r fase6-boxplot, fig.cap="Horas de resolución de tickets por equipo"}
+## Histograma: distribución de la cobertura de pruebas
+
+```{r fase6-hist-cov, fig.cap="Distribución de la cobertura de pruebas"}
+ggplot(df, aes(test_coverage_pct)) +
+  geom_histogram(bins = 20, fill = "darkgreen", color = "white") +
+  labs(x = "Cobertura de pruebas (%)", y = "Frecuencia")
+```
+
+## Boxplot: horas de resolución de tickets por equipo
+
+```{r fase6-box-team, fig.cap="Horas de resolución de tickets por equipo"}
 ggplot(df, aes(team, ticket_resolution_h)) +
   geom_boxplot(fill = "lightblue") +
   labs(x = "Equipo", y = "Horas de resolución")
 ```
 
-```{r fase6-barras, fig.cap="Tasa de despliegues fallidos por equipo"}
+## Boxplot: número de bugs por prioridad
+
+```{r fase6-box-priority, fig.cap="Número de bugs según prioridad del ticket"}
+ggplot(df, aes(priority, num_bugs)) +
+  geom_boxplot(fill = "salmon") +
+  labs(x = "Prioridad", y = "Número de bugs")
+```
+
+## Gráfico de barras: cantidad de eventos por módulo
+
+```{r fase6-bar-modulo, fig.cap="Cantidad de eventos por módulo"}
+df %>%
+  count(module) %>%
+  ggplot(aes(reorder(module, -n), n)) +
+  geom_col(fill = "orange") +
+  labs(x = "Módulo", y = "Cantidad de eventos")
+```
+
+## Gráfico de barras: tasa de despliegues fallidos por equipo
+
+```{r fase6-bar-fallos, fig.cap="Tasa de despliegues fallidos por equipo"}
 df %>%
   group_by(team) %>%
   summarise(tasa_fallos = mean(deploy_status == "failed")) %>%
   ggplot(aes(reorder(team, -tasa_fallos), tasa_fallos)) +
   geom_col(fill = "firebrick") +
-  scale_y_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = percent) +
   labs(x = "Equipo", y = "% de despliegues fallidos")
 ```
 
-```{r fase6-dispersion, fig.cap="Tamaño del commit vs. tiempo de despliegue"}
+## Dispersión: tamaño del commit vs. tiempo de despliegue
+
+```{r fase6-scatter, fig.cap="Tamaño del commit vs. tiempo de despliegue"}
 ggplot(df, aes(commit_size_loc, deploy_time_min)) +
   geom_point(alpha = 0.2, color = "steelblue") +
   labs(x = "Líneas de código modificadas", y = "Tiempo de despliegue (min)")
 ```
 
-# Conclusiones
+# Conclusiones  {-}
 
-- La variable con mayor dispersión relativa es **`r var_mas_variable`** (mayor coeficiente
-  de variación), lo que sugiere mayor imprevisibilidad en esa métrica.
-- La mayoría de los despliegues concentran su tiempo de build en el tramo **`r clase_modal`**
-  minutos.
-- El equipo **`r equipo_peor`** presenta la tasa de fallos más alta
-  (`r scales::percent(tasa_peor)`), lo cual es consistente con revisar su relación entre
-  bugs y despliegues fallidos en la tabla de la Fase 4.
-- Se observa una asociación de **`r cor_loc_bugs`** entre tamaño del commit y bugs, y de
-  **`r cor_cov_bugs`** entre cobertura de pruebas y bugs — ninguna de las dos debe leerse
-  como una relación causal directa.
+Sobre la calidad de los datos
 
-*(Ajusta y amplía estas conclusiones con tu propia lectura al momento de conocer los
-resultados reales que arroje tu ejecución del reporte.)*
+Se limpiaron duplicados, inconsistencias de formato y outliers antes de analizar,
+documentando cada decisión (Fase 1) para que el análisis posterior sea confiable.
+
+Sobre el comportamiento general de las variables
+
+La variable con mayor dispersión relativa es **`r var_mas_variable`**. La mayoría
+de los despliegues concentra su tiempo de build en el tramo **`r clase_modal_build`**
+minutos (Fases 2 y 3).
+
+Sobre las diferencias entre grupos
+
+El equipo **`r equipo_peor`** presenta la tasa de fallos más alta
+(`r percent(tasa_peor)`), consistente con un mayor promedio de bugs por despliegue
+(Fase 4).
+
+Sobre las relaciones entre variables
+
+Se observan asociaciones de **`r cor_loc_bugs`** entre tamaño del commit y bugs, y
+de **`r cor_cov_bugs`** entre cobertura de pruebas y bugs — ninguna debe leerse como
+relación causal directa (Fase 5).
+
+# Recomendación  {-}
+
+Reforzar la cobertura de pruebas y la revisión de código antes de desplegar cambios
+grandes, priorizando al equipo y módulo con mayor tasa de fallos identificados en
+este análisis.
+
+
