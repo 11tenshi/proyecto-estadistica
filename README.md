@@ -33,5 +33,5 @@ Proyecto integrador del curso de Probabilidad y Estadística Computacional. Anal
 
 - Repositorio Git (este repo, con historial de commits por fase)
 - Script de R (`Analisis.R`)
-- Reporte reproducible (`.Rmd`/`.qmd`, en desarrollo — Fase 7)
-- Bitácora de prompts (documento aparte)
+- Reporte reproducible (`Reporte.Rmd`)
+- Bitácora de prompts (Bitacora de prompts - Proyecto.txt)
