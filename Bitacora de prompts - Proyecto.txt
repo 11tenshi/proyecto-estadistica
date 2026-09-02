@@ -17,9 +17,10 @@ Luego del desarrollo del punto v3, se comprendió el desarrollo de los puntos 3 
 
 v4: "Perfecto, he entendido la logica de la fase 3 y 4, podriamos seguir con la fase 5 y 6 siguiendo el mismo enfoque que en las fases anteriores para poder finalizar el desarrollo sin problemas?"
 
-Se solicito la construccion del README para el codigo del proyecto.
+Posteriormente al haber obtenido el desarrollo de todas las fases de desarrollo para el análisis, y habiendo comprendido como realizar el desarrollo linea por linea, se le  solicitó a la IA apoyo con la construccion del README para el codigo del proyecto. La idea era obtener en un v5 algo sencillo pero que explicara claramente lo definido en la estructura del proyecto.
 
 v5: "Necesito que construyas el readme para mi codigo segun lo solicitado en el documento. Debe ser algo breve y simple, pero exacto segun lo que se definio. A continuacion te subire la foto con el directorio de mi codigo. Es importante aclarar que todas las fases las hice en un solo archivo (AnalisisR)"
 
-Se 
+Finalmente, al haber finalizado esos pasos se procedió a solicitar apoyo con la construcción del reporte, sobretodo para poder entender o interpretar los resultados obtenidos en las fases anteriores; aquí fue importante enfatizar que se apegara al formato solicitado en el enunciado del proyecto, de manera que fuera fase por fase y se enfocase en construir un archivo .Rmd con los hallazgos. Esto se realizó en una v6:
+
 v6: "Continuemos ahora con la fase 7,  quiero que se enfatice en mostrar los resultados del trabajo a lo largo de las fases y que se apegue al formato solicitado por el documento"
