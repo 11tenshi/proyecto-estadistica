@@ -17,9 +17,6 @@ Proyecto integrador del curso de Probabilidad y Estadística Computacional. Anal
 | `proyecto-estadistica.Rproj` | Proyecto de RStudio. Ábrelo primero para que las rutas relativas funcionen. |
 | `Analisis.R` | Script único con el desarrollo completo del proyecto (Fases 1 a 6: carga y limpieza, descriptiva univariada, frecuencias y agrupación, análisis por grupos, relaciones bivariadas y visualización). |
 | `devops_metrics.csv` | Dataset original, sin procesar. |
-| `devops_metrics_clean.csv` | Dataset resultante tras la limpieza (Fase 1). |
-| `tabla_descriptiva_fase2.csv` | Tabla resumen de medidas de tendencia central, dispersión y forma (Fase 2). |
-| `hist_build_time.png` | Gráfico exportado como ejemplo de la Fase 6 (distribución del tiempo de build). |
 | `README.md` | Este archivo. |
 
 ## Cómo ejecutar
@@ -34,4 +31,4 @@ Proyecto integrador del curso de Probabilidad y Estadística Computacional. Anal
 - Repositorio Git (este repo, con historial de commits por fase)
 - Script de R (`Analisis.R`)
 - Reporte reproducible (`Reporte.Rmd`)
-- Bitácora de prompts (Bitacora de prompts - Proyecto.txt)
+- Bitácora de prompts (`Bitacora de prompts - Proyecto.txt`)
